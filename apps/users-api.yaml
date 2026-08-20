@@ -1,22 +1,22 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: orders-api
+  name: users-api
 spec:
   replicas: 2
-  selector: {matchLabels: {app: orders-api}}
+  selector: {matchLabels: {app: users-api}}
   template:
     metadata:
-      labels: {app: orders-api, tier: app}
+      labels: {app: users-api, tier: app}
     spec:
       terminationGracePeriodSeconds: 20
       containers:
-        - name: orders-api
+        - name: users-api
           image: ghcr.io/a4225344a/platform-service@sha256:5b9f44529d9f613f31acff3a403d3bd00c1d6404e12f5ea72b8dea512dcc7a75
           ports: [{containerPort: 8080}]
           env:
             - name: SERVICE_NAME
-              value: "orders-api"
+              value: "users-api"
           resources:
             requests: {cpu: "50m", memory: "128Mi"}
             limits: {cpu: "250m", memory: "256Mi"}
@@ -27,22 +27,22 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: orders-api
-  labels: {app: orders-api}
+  name: users-api
+  labels: {app: users-api}
 spec:
-  selector: {app: orders-api}
+  selector: {app: users-api}
   ports: [{name: http, port: 80, targetPort: 8080}]
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
-  name: orders-route
+  name: users-route
 spec:
   parentRefs: [{name: platform-gateway}]
   rules:
-    - matches: [{path: {type: PathPrefix, value: /orders}}]
+    - matches: [{path: {type: PathPrefix, value: /users}}]
       filters:
         - type: URLRewrite
           urlRewrite:
             path: {type: ReplacePrefixMatch, replacePrefixMatch: /WeatherForecast}
-      backendRefs: [{name: orders-api, port: 80}]
+      backendRefs: [{name: users-api, port: 80}]

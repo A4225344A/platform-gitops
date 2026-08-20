@@ -1,0 +1,50 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: orders-api
+spec:
+  replicas: 2
+  selector: { matchLabels: { app: orders-api } }
+  template:
+    metadata:
+      labels: { app: orders-api, tier: app }
+    spec:
+      terminationGracePeriodSeconds: 20
+      containers:
+        - name: orders-api
+          image: ghcr.io/a4225344a/platform-service@${DIGEST}
+          ports: [{ containerPort: 8080 }]
+          env:
+            - name: SERVICE_NAME
+              value: "orders-api"
+          resources:
+            requests: { cpu: "50m", memory: "128Mi" }
+            limits:   { cpu: "250m", memory: "256Mi" }
+          startupProbe:  { httpGet: { path: /healthz, port: 8080 }, failureThreshold: 10, periodSeconds: 3 }
+          livenessProbe: { httpGet: { path: /healthz, port: 8080 }, periodSeconds: 10 }
+          readinessProbe:{ httpGet: { path: /ready, port: 8080 }, periodSeconds: 5 }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: orders-api
+  labels: { app: orders-api }
+spec:
+  selector: { app: orders-api }
+  ports: [{ name: http, port: 80, targetPort: 8080 }]
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: orders-route
+spec:
+  parentRefs: [{ name: platform-gateway }]
+  rules:
+    - matches: [{ path: { type: PathPrefix, value: /orders } }]
+      # ⚠️ 必要:服務實際的業務端點是 /WeatherForecast(見下方說明),
+      # Gateway API 預設不改寫路徑,不加這段的話請求會帶著 /orders 送到後端 → 404
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path: { type: ReplacePrefixMatch, replacePrefixMatch: /WeatherForecast }
+      backendRefs: [{ name: orders-api, port: 80 }]

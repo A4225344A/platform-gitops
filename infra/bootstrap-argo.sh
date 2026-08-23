@@ -9,7 +9,13 @@ kubectl get gatewayclass cilium
 
 echo "--- 安裝 Argo CD ---"
 kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
-kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+# ⚠️ 必要:用一般 kubectl apply(client-side)套用這份 install.yaml,
+# applicationsets.argoproj.io 這個 CRD 本身太大,存進
+# kubectl.kubernetes.io/last-applied-configuration annotation 時會超過
+# K8s 對單一 annotation 262144 bytes 的硬限制而報錯,直接讓這一步(以及
+# set -e 底下的整個腳本)中止。改用 server-side apply 天生不受這個限制影響。
+kubectl apply -n argocd --server-side --force-conflicts \
+  -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
 kubectl wait --for=condition=available --timeout=300s deployment/argocd-server -n argocd
 
 echo "--- 接回 GitOps ---"

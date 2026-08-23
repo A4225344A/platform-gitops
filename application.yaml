@@ -4,7 +4,7 @@ metadata: { name: platform-apps, namespace: argocd }
 spec:
   project: default
   source:
-    repoURL: <你的 platform-gitops repo URL>
+    repoURL: https://github.com/A4225344A/platform-gitops.git
     targetRevision: main
     path: apps
   destination: { server: https://kubernetes.default.svc, namespace: default }

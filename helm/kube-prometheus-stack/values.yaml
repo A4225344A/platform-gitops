@@ -1,0 +1,48 @@
+prometheus:
+  prometheusSpec:
+    retention: 7d
+    scrapeInterval: 30s
+    resources: { requests: { memory: "512Mi" }, limits: { memory: "1Gi" } }
+    # 88.x 官方 values 仍支援這兩個開關。設為 false 代表不要由 Helm
+    # 自動補 release=<release-name> selector；搭配 {} 可選取命名空間範圍內
+    # 所有 PrometheusRule / ServiceMonitor。
+    ruleSelectorNilUsesHelmValues: false
+    ruleSelector: {}
+    serviceMonitorSelectorNilUsesHelmValues: false
+    serviceMonitorSelector: {}
+grafana:
+  admin:
+    existingSecret: "platform-secrets"
+    userKey: "admin-user"
+    passwordKey: "grafana-admin-password"
+  # v6 新增:預先掛上 Tempo 資料源,任務 5 部署後即可用
+  additionalDataSources:
+    - name: Tempo
+      type: tempo
+      access: proxy
+      url: http://tempo.monitoring.svc:3200
+      uid: tempo
+alertmanager:
+  enabled: true
+  config:
+    route:
+      group_by: ['alertname', 'service']
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 1h
+      receiver: 'ai-agent'
+      routes:
+        # Watchdog 是 kube-prometheus-stack 內建的心跳告警,不該打到 AI Agent
+        - matchers: [ 'alertname = "Watchdog"' ]
+          receiver: 'null'
+        # AgentQueueBacklog 監控的就是 ai-agent 自己；再 webhook 回同一個 queue
+        # 只會在已積壓時多塞一件工作，agent 掛掉時也不可能靠自己通知自己。
+        # Lab 保留告警在 Prometheus/Alertmanager 可見，但不送回 ai-agent。
+        - matchers: [ 'alertname = "AgentQueueBacklog"' ]
+          receiver: 'null'
+    receivers:
+      - name: 'null'
+      - name: 'ai-agent'
+        webhook_configs:
+          - url: 'http://ai-agent.default.svc.cluster.local:8080/alert'
+            send_resolved: false

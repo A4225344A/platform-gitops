@@ -1,0 +1,80 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: platform-alerts
+  namespace: monitoring
+  labels: { release: kps }
+spec:
+  groups:
+    - name: platform.rules
+      rules:
+        # L0 探針攔不住的情況:持續重啟 = CrashLoop,這時才驚動 AI
+        - alert: PodCrashLooping
+          expr: increase(kube_pod_container_status_restarts_total{namespace="default"}[10m]) > 3
+          for: 2m
+          labels:
+            severity: warning
+            # 傳 Pod 名最穩定：ai-agent 會沿 Pod → ReplicaSet → Deployment ownerReference 解析。
+            # 不用 container 名，因為 container 名不保證等於 Deployment 名。
+            service: "{{ $labels.pod }}"
+          annotations:
+            summary: "{{ $labels.pod }} 在 10 分鐘內重啟超過 3 次"
+
+        - alert: HighErrorRate
+          expr: |
+            sum by (service) (rate(http_requests_received_total{namespace="default",code=~"5.."}[5m]))
+            /
+            sum by (service) (rate(http_requests_received_total{namespace="default"}[5m])) > 0.05
+          for: 3m
+          labels: { severity: warning }
+          annotations:
+            summary: "{{ $labels.service }} 5xx 錯誤率超過 5%"
+
+        - alert: PodNotReady
+          expr: kube_pod_status_ready{namespace="default",condition="false"} == 1
+          for: 5m
+          labels:
+            severity: warning
+            service: "{{ $labels.pod }}"
+          annotations:
+            summary: "{{ $labels.pod }} 超過 5 分鐘未進入 Ready"
+
+        # v6 新增:佇列積壓代表 Agent 沒在消化工作
+        - alert: AgentQueueBacklog
+          expr: ai_agent_queue_pending > 5
+          for: 10m
+          labels: { severity: warning, service: "ai-agent" }
+          annotations:
+            summary: "ai-agent 佇列積壓超過 10 分鐘,判讀可能卡住"
+
+        # v6.1 新增:Postgres 內部狀態告警,對應任務 3.2b 的 postgres_exporter。
+        # 這三條在此刻部署時 postgres_exporter 尚未存在,規則會先顯示無資料 ——
+        # 這與上面 AgentQueueBacklog 的情況相同(ai-agent 也還沒部署),
+        # 屬於宣告式規則的正常狀態,任務 3.2b 部署完成後就會開始有數據。
+        #
+        - alert: PostgresLockWait
+          # v0.20.1 的 pg_locks_count 只按 lock mode 計數，沒有 granted 維度，
+          # 不能拿來判斷「正在等待」。stat_activity collector 已提供
+          # wait_event_type / wait_event；真正的 lock wait 用這條。
+          expr: sum(pg_stat_activity_count{wait_event_type="Lock"}) > 0
+          for: 2m
+          labels: { severity: warning, service: "postgres" }
+          annotations:
+            summary: "Postgres 有連線持續等待 Lock 超過 2 分鐘"
+            description: "應用層 timeout 可能源自資料庫鎖等待；重啟下游應用通常無效。"
+
+        - alert: PostgresLongTransaction
+          expr: pg_stat_activity_max_tx_duration{state="active"} > 300
+          for: 1m
+          labels: { severity: warning, service: "postgres" }
+          annotations:
+            summary: "Postgres 有超過 5 分鐘的長交易"
+
+        - alert: PostgresConnectionsHigh
+          expr: sum(pg_stat_activity_count) / max(pg_settings_max_connections) > 0.8
+          for: 3m
+          labels: { severity: warning, service: "postgres" }
+          annotations:
+            summary: "Postgres 連線數超過上限的 80%"
+          # numerator/denominator 都先聚合成無 label 的 instant vector；
+          # 不依賴 exporter 是否替 pg_settings_* 附加 server/target label。

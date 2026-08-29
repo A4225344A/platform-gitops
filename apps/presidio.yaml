@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: presidio-analyzer }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: presidio } }
+  template:
+    metadata: { labels: { app: presidio } }
+    spec:
+      containers:
+        - name: analyzer
+          image: ghcr.io/data-privacy-stack/presidio-analyzer:2.2.364@sha256:ae8f6f111ac2f04e3fec552f7f80edd0dcbfa2dd69ee1b9e030475be31669885
+          ports: [{ containerPort: 3000 }]
+          # 注意:limits 400Mi 會直接 OOMKilled
+          resources:
+            requests: { memory: "1Gi",  cpu: "200m" }
+            limits:   { memory: "2Gi" }
+          readinessProbe:
+            httpGet: { path: /health, port: 3000 }
+            initialDelaySeconds: 40      # spaCy 模型載入慢,給足時間
+            periodSeconds: 10
+            failureThreshold: 12
+---
+apiVersion: v1
+kind: Service
+metadata: { name: presidio }
+spec: { selector: { app: presidio }, ports: [{ port: 3000 }] }
+---
+# v6 新增:LiteLLM 的 presidio guardrail 需要 anonymizer 端點
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: presidio-anonymizer }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: presidio-anonymizer } }
+  template:
+    metadata: { labels: { app: presidio-anonymizer } }
+    spec:
+      containers:
+        - name: anonymizer
+          image: ghcr.io/data-privacy-stack/presidio-anonymizer:2.2.364@sha256:e567013893ebc80994e3799f6f55c86aa1f0b0fadb779571ab346f0ec45365c1
+          ports: [{ containerPort: 3000 }]
+          resources:
+            requests: { memory: "128Mi", cpu: "50m" }
+            limits:   { memory: "256Mi" }
+          readinessProbe:
+            httpGet: { path: /health, port: 3000 }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata: { name: presidio-anonymizer }
+spec: { selector: { app: presidio-anonymizer }, ports: [{ port: 3000 }] }

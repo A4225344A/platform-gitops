@@ -16,6 +16,14 @@ spec:
             - name: LITELLM_MASTER_KEY
               valueFrom:
                 secretKeyRef: { name: platform-secrets, key: litellm-master-key }
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef: { name: bedrock-aws-creds, key: AWS_ACCESS_KEY_ID }
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef: { name: bedrock-aws-creds, key: AWS_SECRET_ACCESS_KEY }
+            - { name: AWS_REGION, value: "ap-northeast-1" }
+            - { name: AWS_DEFAULT_REGION, value: "ap-northeast-1" }
             # v6 新增:PII guardrail 需要 analyzer 與 anonymizer 兩個端點
             - { name: PRESIDIO_ANALYZER_API_BASE,   value: "http://presidio:3000" }
             - { name: PRESIDIO_ANONYMIZER_API_BASE, value: "http://presidio-anonymizer:3000" }

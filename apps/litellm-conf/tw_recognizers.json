@@ -1,0 +1,10 @@
+[
+  {
+    "name": "TW_ID_RECOGNIZER",
+    "supported_language": "en",
+    "supported_entity": "TW_ID",
+    "patterns": [
+      { "name": "tw_id", "regex": "\\b[A-Z][12]\\d{8}\\b", "score": 0.8 }
+    ]
+  }
+]

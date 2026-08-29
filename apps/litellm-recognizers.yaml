@@ -1,0 +1,16 @@
+apiVersion: v1
+data:
+  tw_recognizers.json: |
+    [
+      {
+        "name": "TW_ID_RECOGNIZER",
+        "supported_language": "en",
+        "supported_entity": "TW_ID",
+        "patterns": [
+          { "name": "tw_id", "regex": "\\b[A-Z][12]\\d{8}\\b", "score": 0.8 }
+        ]
+      }
+    ]
+kind: ConfigMap
+metadata:
+  name: litellm-recognizers

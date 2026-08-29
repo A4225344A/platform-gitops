@@ -1,0 +1,107 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: litellm }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: litellm } }
+  template:
+    metadata: { labels: { app: litellm } }   # 刻意不給 tier: app,避免被 ServiceMonitor 選中
+    spec:
+      containers:
+        - name: litellm
+          image: ghcr.io/berriai/litellm:v1.98.0   # v10 修正:main-latest 已棄用,見準備 5
+          args: ["--config", "/config/config.yaml"]
+          env:
+            # 沒有這個 key,叢集內任何 Pod 都能免費燒你的 Bedrock 額度
+            - name: LITELLM_MASTER_KEY
+              valueFrom:
+                secretKeyRef: { name: platform-secrets, key: litellm-master-key }
+            # v6 新增:PII guardrail 需要 analyzer 與 anonymizer 兩個端點
+            - { name: PRESIDIO_ANALYZER_API_BASE,   value: "http://presidio:3000" }
+            - { name: PRESIDIO_ANONYMIZER_API_BASE, value: "http://presidio-anonymizer:3000" }
+            # v6 新增:gateway 層的 OTel 匯出。每一次呼叫都被記錄,
+            # 不管呼叫者是 agent、索引腳本、還是評測腳本
+            - { name: OTEL_EXPORTER_OTLP_ENDPOINT, value: "http://tempo.monitoring.svc:4318" }
+            - { name: OTEL_SERVICE_NAME, value: "litellm" }
+          ports: [{ containerPort: 4000 }]
+          resources:
+            requests: { memory: "256Mi", cpu: "100m" }
+            limits:   { memory: "512Mi" }
+          readinessProbe:
+            httpGet: { path: /health/liveliness, port: 4000 }
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          volumeMounts:
+            - { name: cfg, mountPath: /config }
+            - { name: recognizers, mountPath: /config/recognizers }
+      volumes:
+        - name: cfg
+          configMap: { name: litellm-config }
+        - name: recognizers
+          configMap: { name: litellm-recognizers }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata: { name: litellm-config }
+data:
+  config.yaml: |
+    model_list:
+      # judge 是抽象名稱。底下換誰,agent.py 一行不動 —— 這是綁定點四的重點。
+      - model_name: judge
+        litellm_params:
+          model: bedrock/amazon.nova-micro-v1:0
+          aws_region_name: ap-northeast-1
+      - model_name: judge-strong
+        litellm_params:
+          # v6.1.3:注意 jp. 前綴 —— Haiku 4.5 這類較新的 Claude 模型
+          # 不支援用裸 model ID 呼叫,必須用跨區推論設定檔(inference profile)。
+          # 寫成 bedrock/anthropic.claude-haiku-4-5-... 會回:
+          #   ValidationException: on-demand throughput isn't supported for this model
+          # 這個錯誤訊息完全沒提到「你需要加前綴」,不知道的人會卡很久。
+          # 前綴依來源區域而定(日本 jp.、美國 us.、歐洲 eu.、澳洲 au.),
+          # 以 Bedrock 主控台的 Cross-Region Inference 頁面顯示的為準。
+          model: bedrock/jp.anthropic.claude-haiku-4-5-20251001-v1:0
+          aws_region_name: ap-northeast-1
+      - model_name: embed
+        litellm_params:
+          model: bedrock/amazon.titan-embed-text-v2:0
+          aws_region_name: ap-northeast-1
+      # 本地備援:換成 Ollama 只需啟用這段(model_name 不變是重點)
+      # - model_name: judge
+      #   litellm_params:
+      #     model: ollama/llama3.2
+      #     api_base: http://ollama:11434
+
+    # v6 新增:PII 遮蔽在 gateway,不在應用層(綁定點九)
+    guardrails:
+      - guardrail_name: "presidio-pii"
+        litellm_params:
+          guardrail: presidio
+          mode: "pre_call"
+          presidio_language: "en"
+          presidio_ad_hoc_recognizers: "/config/recognizers/tw_recognizers.json"
+          pii_entities_config:
+            EMAIL_ADDRESS: "MASK"
+            IP_ADDRESS:    "MASK"
+            PHONE_NUMBER:  "MASK"
+            CREDIT_CARD:   "MASK"
+            PERSON:        "MASK"
+            TW_ID:         "MASK"
+          default_on: true
+
+    router_settings:
+      # 判讀失敗時自動升級到較強的模型,再失敗才由 agent 降級為 notify_only
+      fallbacks: [{ "judge": ["judge-strong"] }]
+      num_retries: 2
+
+    litellm_settings:
+      callbacks: ["otel"]        # v6:trace 走 OTLP,後端由環境變數決定
+      drop_params: true          # 底層不支援的參數自動丟棄,提高換模型的相容性
+
+    general_settings:
+      master_key: os.environ/LITELLM_MASTER_KEY
+---
+apiVersion: v1
+kind: Service
+metadata: { name: litellm }
+spec: { selector: { app: litellm }, ports: [{ port: 4000 }] }

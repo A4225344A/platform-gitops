@@ -1,0 +1,40 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata: { name: ai-agent-blast-radius }
+spec:
+  failurePolicy: Fail          # 政策本身壞掉時拒絕,不放行
+  matchConstraints:
+    resourceRules:
+      - apiGroups:   ["apps"]
+        apiVersions: ["v1"]
+        operations:  ["UPDATE"]
+        resources:   ["deployments", "deployments/scale"]
+  matchConditions:
+    # 只約束 ai-agent 這個身分;人類與 CI 不受影響
+    - name: only-ai-agent
+      expression: "request.userInfo.username == 'system:serviceaccount:default:ai-agent'"
+  validations:
+    # (1) scale 的上限由 API server 強制,不靠 Agent 自己的 Pydantic
+    - expression: >-
+        request.subresource != 'scale' ||
+        (object.spec.replicas >= 1 && object.spec.replicas <= 5)
+      message: "ai-agent 只能將 replicas 調整到 1..5"
+    # (2) restart 只能動 annotation —— 不得更換映像、改資源、改指令
+    - expression: >-
+        request.subresource == 'scale' ||
+        object.spec.template.spec.containers == oldObject.spec.template.spec.containers
+      message: "ai-agent 不得修改容器規格(映像/資源/指令)"
+    # (3) 不得把服務縮到 0(等同下線)
+    - expression: >-
+        request.subresource != 'scale' || object.spec.replicas != 0
+      message: "ai-agent 不得將服務縮至 0"
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata: { name: ai-agent-blast-radius }
+spec:
+  policyName: ai-agent-blast-radius
+  validationActions: [Audit]        # 第一天先只記錄。確認無誤擋後改 [Deny, Audit]
+  matchResources:
+    namespaceSelector:
+      matchLabels: { kubernetes.io/metadata.name: default }

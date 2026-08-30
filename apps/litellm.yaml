@@ -57,7 +57,7 @@ data:
       # judge 是抽象名稱。底下換誰,agent.py 一行不動 —— 這是綁定點四的重點。
       - model_name: judge
         litellm_params:
-          model: bedrock/amazon.nova-micro-v1:0
+          model: bedrock/jp.anthropic.claude-haiku-4-5-20251001-v1:0
           aws_region_name: ap-northeast-1
       - model_name: judge-strong
         litellm_params:

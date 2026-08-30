@@ -10,21 +10,21 @@ spec:
       serviceAccountName: ai-agent          # 任務 7.2 建立,受限權限
       containers:
         - name: agent
-          image: ghcr.io/<你的帳號>/ai-agent:v6.1.3   # 首次部署後固定為 digest
+          image: ghcr.io/a4225344a/ai-agent:sha-edb1332f37ab
           ports: [{ containerPort: 8080, name: http }]
           env:
             - { name: LITELLM_URL,  value: "http://litellm:4000" }
             - { name: PRESIDIO_URL, value: "http://presidio:3000" }
             - { name: PROM_URL,     value: "http://kps-kube-prometheus-stack-prometheus.monitoring.svc:9090" }
-            - { name: PGHOST,       value: "postgres" }
+            - name: PGHOST
+              valueFrom:
+                configMapKeyRef: { name: platform-config, key: PGHOST }
             - { name: AWS_REGION,   value: "ap-northeast-1" }
             - { name: TARGET_NAMESPACE, value: "default" }
             - { name: AGENT_VERSION,    value: "v6.1.3" }
             - { name: ALERT_EMAIL,  value: "<你驗證過的 SES 地址>" }
             # v6:追蹤後端就是這一行。換 Langfuse/Jaeger/OpenObserve 只改這裡。
             - { name: OTEL_EXPORTER_OTLP_ENDPOINT, value: "http://tempo.monitoring.svc:4318" }
-            - { name: OTEL_EXPORTER_OTLP_LOGS_ENDPOINT, value: "http://otel-collector:4318/v1/logs" }
-            - { name: OTEL_EXPORTER_OTLP_LOGS_PROTOCOL, value: "http/protobuf" }
             - { name: OTEL_SERVICE_NAME, value: "w3-ai-agent" }
             # 換到不支援 json_schema 的模型時,把這個設為 false
             - { name: USE_STRUCTURED_OUTPUT, value: "true" }

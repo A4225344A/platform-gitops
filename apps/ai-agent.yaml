@@ -10,7 +10,7 @@ spec:
       serviceAccountName: ai-agent          # 任務 7.2 建立,受限權限
       containers:
         - name: agent
-          image: ghcr.io/a4225344a/ai-agent:sha-edb1332f37ab
+          image: ghcr.io/a4225344a/ai-agent:sha-752076123a54
           ports: [{ containerPort: 8080, name: http }]
           env:
             - { name: LITELLM_URL,  value: "http://litellm:4000" }

@@ -23,7 +23,6 @@ spec:
           startupProbe: {httpGet: {path: /healthz, port: 8080}, failureThreshold: 10, periodSeconds: 3}
           livenessProbe: {httpGet: {path: /healthz, port: 8080}, periodSeconds: 10}
           readinessProbe: {httpGet: {path: /ready, port: 8080}, periodSeconds: 5}
-	  command: ["sh", "-c", "echo boom; exit 1"]
 ---
 apiVersion: v1
 kind: Service

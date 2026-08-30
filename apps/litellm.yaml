@@ -5,7 +5,10 @@ spec:
   replicas: 1
   selector: { matchLabels: { app: litellm } }
   template:
-    metadata: { labels: { app: litellm } }   # 刻意不給 tier: app,避免被 ServiceMonitor 選中
+    metadata:
+      labels: { app: litellm }   # 刻意不給 tier: app,避免被 ServiceMonitor 選中
+      annotations:
+        platform.local/config-revision: "2026-08-30-bedrock-judge"
     spec:
       containers:
         - name: litellm

@@ -1,0 +1,64 @@
+apiVersion: v1
+kind: ConfigMap
+metadata: { name: tempo-config, namespace: monitoring }
+data:
+  tempo.yaml: |
+    server:
+      http_listen_port: 3200
+    distributor:
+      receivers:
+        otlp:
+          protocols:
+            http: { endpoint: "0.0.0.0:4318" }
+            grpc: { endpoint: "0.0.0.0:4317" }
+    ingester:
+      max_block_duration: 5m
+    compactor:
+      compaction:
+        block_retention: 24h        # 每日重建,留 24h 足夠
+    storage:
+      trace:
+        backend: local
+        local: { path: /var/tempo/blocks }
+        wal:   { path: /var/tempo/wal }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: tempo, namespace: monitoring }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: tempo } }
+  template:
+    metadata: { labels: { app: tempo } }
+    spec:
+      containers:
+        - name: tempo
+          image: grafana/tempo:2.10.0     # 首次部署後依準備 5 固定為 digest
+          args: ["-config.file=/etc/tempo/tempo.yaml"]
+          ports:
+            - { containerPort: 3200, name: http }
+            - { containerPort: 4318, name: otlp-http }
+            - { containerPort: 4317, name: otlp-grpc }
+          resources:
+            requests: { memory: "256Mi", cpu: "100m" }
+            limits:   { memory: "512Mi" }
+          readinessProbe:
+            httpGet: { path: /ready, port: 3200 }
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          volumeMounts:
+            - { name: cfg,  mountPath: /etc/tempo }
+            - { name: data, mountPath: /var/tempo }
+      volumes:
+        - { name: cfg,  configMap: { name: tempo-config } }
+        - { name: data, emptyDir: {} }     # 每日重建,不需要 PV
+---
+apiVersion: v1
+kind: Service
+metadata: { name: tempo, namespace: monitoring }
+spec:
+  selector: { app: tempo }
+  ports:
+    - { name: http,      port: 3200 }
+    - { name: otlp-http, port: 4318 }
+    - { name: otlp-grpc, port: 4317 }

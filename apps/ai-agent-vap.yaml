@@ -14,11 +14,10 @@ spec:
       expression: "request.userInfo.username == 'system:serviceaccount:default:ai-agent'"
   validations:
     - expression: >-
-        request.subResource == 'scale' ||
         object.spec.replicas == oldObject.spec.replicas
       message: "replicas are owned by HPA; ai-agent must not modify them"
     - expression: >-
-        request.subResource == 'scale' ||
+        !has(object.spec.template) ||
         object.spec.template.spec.containers == oldObject.spec.template.spec.containers
       message: "ai-agent may only restart by changing pod template metadata"
 ---

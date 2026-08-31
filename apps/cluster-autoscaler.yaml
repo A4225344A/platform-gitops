@@ -131,6 +131,8 @@ spec:
         prometheus.io/port: "8085"
     spec:
       priorityClassName: system-cluster-critical
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
       serviceAccountName: cluster-autoscaler
       securityContext:
         runAsNonRoot: true

@@ -1,0 +1,99 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-collector-config
+data:
+  config.yaml: |
+    receivers:
+      otlp:
+        protocols:
+          http:
+            endpoint: 0.0.0.0:4318
+          grpc:
+            endpoint: 0.0.0.0:4317
+
+    processors:
+      batch: {}
+
+    exporters:
+      awscloudwatchlogs:
+        region: ap-northeast-1
+        log_group_name: /w3/ai-agent
+        log_stream_name: w3-ai-agent
+        log_retention: 7
+      otlp_http/loki:
+        endpoint: http://loki:3100/otlp
+        tls:
+          insecure: true
+      file:
+        path: /var/log/otel/ai-agent.log
+
+    extensions:
+      health_check:
+        endpoint: 0.0.0.0:13133
+
+    service:
+      extensions: [health_check]
+      pipelines:
+        logs:
+          receivers: [otlp]
+          processors: [batch]
+          exporters: [awscloudwatchlogs]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: otel-collector
+  labels: { app: otel-collector }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: otel-collector }
+  template:
+    metadata:
+      labels: { app: otel-collector }
+    spec:
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      containers:
+        - name: otel-collector
+          image: otel/opentelemetry-collector-contrib:0.159.0
+          args: ["--config=/etc/otelcol/config.yaml"]
+          ports:
+            - { name: otlp-http, containerPort: 4318 }
+            - { name: otlp-grpc, containerPort: 4317 }
+            - { name: healthz, containerPort: 13133 }
+          env:
+            - { name: AWS_REGION, value: "ap-northeast-1" }
+            - { name: AWS_STS_REGIONAL_ENDPOINTS, value: "regional" }
+          volumeMounts:
+            - { name: config, mountPath: /etc/otelcol }
+            - { name: otel-data, mountPath: /var/log/otel }
+          resources:
+            requests: { cpu: "50m", memory: "100Mi" }
+            limits: { memory: "256Mi" }
+          readinessProbe:
+            httpGet: { path: /, port: 13133 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /, port: 13133 }
+            initialDelaySeconds: 15
+            periodSeconds: 20
+      volumes:
+        - name: config
+          configMap:
+            name: otel-collector-config
+        - name: otel-data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: otel-collector
+  labels: { app: otel-collector }
+spec:
+  selector: { app: otel-collector }
+  ports:
+    - { name: otlp-http, port: 4318, targetPort: 4318 }
+    - { name: otlp-grpc, port: 4317, targetPort: 4317 }

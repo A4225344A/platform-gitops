@@ -6,18 +6,18 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata: { name: ai-agent, namespace: default }
 rules:
-  # 讀:診斷需要
   - apiGroups: [""]
     resources: ["pods", "pods/log", "events", "services"]
     verbs: ["get", "list"]
   - apiGroups: ["apps"]
     resources: ["deployments", "replicasets"]
     verbs: ["get", "list"]
-  # 寫:只有 restart(patch deployment 的 annotation)與 scale
+  - apiGroups: ["autoscaling"]
+    resources: ["horizontalpodautoscalers"]
+    verbs: ["get", "list"]
   - apiGroups: ["apps"]
-    resources: ["deployments", "deployments/scale"]
-    verbs: ["patch", "update"]
-  # 刻意沒有:delete、secrets、configmaps、任何 cluster 範圍資源
+    resources: ["deployments"]
+    verbs: ["patch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding

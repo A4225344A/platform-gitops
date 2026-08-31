@@ -10,6 +10,9 @@ spec:
   destination: { server: https://kubernetes.default.svc, namespace: default }
   syncPolicy:
     automated: { selfHeal: true, prune: true }
+    syncOptions:
+      - RespectIgnoreDifferences=true
+      - ServerSideApply=true
   ignoreDifferences:
     - group: apps
       kind: Deployment

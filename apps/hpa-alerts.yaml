@@ -1,0 +1,55 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: capacity-rules
+  namespace: monitoring
+  labels:
+    release: kps
+spec:
+  groups:
+    - name: platform-capacity
+      rules:
+        - alert: HPAMaxedOut
+          expr: |
+            (
+              kube_horizontalpodautoscaler_status_current_replicas{namespace="default"}
+                == on(namespace, horizontalpodautoscaler)
+              kube_horizontalpodautoscaler_spec_max_replicas{namespace="default"}
+            )
+            and on(namespace, horizontalpodautoscaler)
+            (
+              kube_horizontalpodautoscaler_spec_max_replicas{namespace="default"}
+                != on(namespace, horizontalpodautoscaler)
+              kube_horizontalpodautoscaler_spec_min_replicas{namespace="default"}
+            )
+          for: 15m
+          labels:
+            severity: warning
+            service: "{{ $labels.horizontalpodautoscaler }}"
+          annotations:
+            summary: "HPA maxed out for {{ $labels.horizontalpodautoscaler }}"
+            description: "The HPA has been at maxReplicas for 15 minutes."
+        - alert: HPAScalingInactive
+          expr: |
+            kube_horizontalpodautoscaler_status_condition{
+              namespace="default",
+              condition="ScalingActive",
+              status="false"
+            } == 1
+          for: 5m
+          labels:
+            severity: warning
+            service: "{{ $labels.horizontalpodautoscaler }}"
+          annotations:
+            summary: "HPA scaling inactive for {{ $labels.horizontalpodautoscaler }}"
+            description: "The HPA cannot calculate or apply scaling decisions."
+        - alert: PodPendingUnschedulable
+          expr: |
+            kube_pod_status_phase{namespace="default", phase="Pending"} == 1
+          for: 5m
+          labels:
+            severity: warning
+            service: "{{ $labels.pod }}"
+          annotations:
+            summary: "Pod pending for {{ $labels.pod }}"
+            description: "A pod has been pending for at least 5 minutes; check scheduler events and node capacity."

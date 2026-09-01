@@ -28,6 +28,18 @@ spec:
             - name: ALERT_WEBHOOK_TOKEN
               valueFrom:
                 secretKeyRef: { name: platform-secrets, key: alert-webhook-token }
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: platform-secrets
+                  key: ai-agent-ses-access-key-id
+                  optional: true
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: platform-secrets
+                  key: ai-agent-ses-secret-access-key
+                  optional: true
             # v6:追蹤後端就是這一行。換 Langfuse/Jaeger/OpenObserve 只改這裡。
             - { name: OTEL_EXPORTER_OTLP_ENDPOINT, value: "http://tempo.monitoring.svc:4318" }
             - { name: OTEL_EXPORTER_OTLP_LOGS_ENDPOINT, value: "http://otel-collector:4318/v1/logs" }

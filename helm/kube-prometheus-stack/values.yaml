@@ -24,6 +24,9 @@ grafana:
       uid: tempo
 alertmanager:
   enabled: true
+  alertmanagerSpec:
+    secrets:
+      - ai-agent-webhook-token
   config:
     route:
       group_by: ['alertname', 'service']
@@ -45,4 +48,8 @@ alertmanager:
       - name: 'ai-agent'
         webhook_configs:
           - url: 'http://ai-agent.default.svc.cluster.local:8080/alert'
+            http_config:
+              authorization:
+                type: Bearer
+                credentials_file: /etc/alertmanager/secrets/ai-agent-webhook-token/token
             send_resolved: false

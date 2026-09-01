@@ -25,12 +25,16 @@ spec:
             - name: ALERT_EMAIL
               valueFrom:
                 configMapKeyRef: { name: platform-config, key: alert-email }
+            - name: ALERT_WEBHOOK_TOKEN
+              valueFrom:
+                secretKeyRef: { name: platform-secrets, key: alert-webhook-token }
             # v6:追蹤後端就是這一行。換 Langfuse/Jaeger/OpenObserve 只改這裡。
             - { name: OTEL_EXPORTER_OTLP_ENDPOINT, value: "http://tempo.monitoring.svc:4318" }
             - { name: OTEL_EXPORTER_OTLP_LOGS_ENDPOINT, value: "http://otel-collector:4318/v1/logs" }
             - { name: OTEL_SERVICE_NAME, value: "w3-ai-agent" }
             # 換到不支援 json_schema 的模型時,把這個設為 false
             - { name: USE_STRUCTURED_OUTPUT, value: "true" }
+            - { name: REQUIRE_HUMAN_APPROVAL, value: "true" }
             - name: PGPASSWORD
               valueFrom:
                 secretKeyRef: { name: platform-secrets, key: postgres-password }

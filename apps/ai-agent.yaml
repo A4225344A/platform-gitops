@@ -10,7 +10,7 @@ spec:
       serviceAccountName: ai-agent          # 任務 7.2 建立,受限權限
       containers:
         - name: agent
-          image: ghcr.io/a4225344a/ai-agent:sha-26c8c26370bc
+          image: ghcr.io/a4225344a/ai-agent:sha-9a8fe3c9a666
           ports: [{ containerPort: 8080, name: http }]
           env:
             - { name: LITELLM_URL,  value: "http://litellm:4000" }
@@ -21,7 +21,7 @@ spec:
                 configMapKeyRef: { name: platform-config, key: PGHOST }
             - { name: AWS_REGION,   value: "ap-northeast-1" }
             - { name: TARGET_NAMESPACE, value: "default" }
-            - { name: AGENT_VERSION,    value: "sha-26c8c26370bc" }
+            - { name: AGENT_VERSION,    value: "sha-9a8fe3c9a666" }
             - name: ALERT_EMAIL
               valueFrom:
                 configMapKeyRef: { name: platform-config, key: alert-email }

@@ -18,8 +18,3 @@ spec:
       kind: Deployment
       jsonPointers:
         - /spec/replicas
-    - group: apps
-      kind: StatefulSet
-      name: postgres
-      jsonPointers:
-        - /spec/volumeClaimTemplates

@@ -40,6 +40,11 @@ spec:
                 secretKeyRef:
                   name: platform-secrets
                   key: engops-api-token
+            - name: ENGOPS_API_ORIGIN_VERIFY_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: platform-secrets
+                  key: engops-api-token
           readinessProbe:
             httpGet:
               path: /readyz

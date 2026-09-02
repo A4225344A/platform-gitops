@@ -45,6 +45,12 @@ spec:
                 secretKeyRef:
                   name: platform-secrets
                   key: engops-api-token
+            - name: ENGOPS_DECISION_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: platform-secrets
+                  key: engops-decision-token
+                  optional: true
           readinessProbe:
             httpGet:
               path: /readyz

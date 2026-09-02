@@ -16,7 +16,7 @@ spec:
       serviceAccountName: engops-api
       containers:
         - name: api
-          image: ghcr.io/a4225344a/engops-api:sha-356195c2eadf
+          image: ghcr.io/a4225344a/engops-api:sha-9c4218b8d606
           ports:
             - name: http
               containerPort: 8000

@@ -5,15 +5,20 @@ metadata:
   namespace: default
 spec:
   parentRefs:
-    - name: platform-gateway
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: platform-gateway
   rules:
     - matches:
         - path:
             type: PathPrefix
             value: /api
       backendRefs:
-        - name: engops-api
+        - group: ""
+          kind: Service
+          name: engops-api
           port: 8000
+          weight: 1
 ---
 apiVersion: batch/v1
 kind: CronJob

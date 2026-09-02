@@ -43,11 +43,19 @@ kind: HTTPRoute
 metadata:
   name: orders-route
 spec:
-  parentRefs: [{name: platform-gateway}]
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: platform-gateway
   rules:
     - matches: [{path: {type: PathPrefix, value: /orders}}]
       filters:
         - type: URLRewrite
           urlRewrite:
             path: {type: ReplacePrefixMatch, replacePrefixMatch: /WeatherForecast}
-      backendRefs: [{name: orders-api, port: 80}]
+      backendRefs:
+        - group: ""
+          kind: Service
+          name: orders-api
+          port: 80
+          weight: 1

@@ -18,7 +18,7 @@ spec:
             matchLabels: {app: payments-api}
       containers:
         - name: payments-api
-          image: ghcr.io/a4225344a/platform-service@sha256:a84a181cb904012462a0f2fada5d3daabde9c9d1195b30a5876fa668b32ec48e
+          image: ghcr.io/a4225344a/platform-service@sha256:c1e1e1dd13f83d4b6129e20ef213742e979632bbd9413c1ceea11f685110ad6b
           ports: [{containerPort: 8080}]
           env:
             - name: SERVICE_NAME

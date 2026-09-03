@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: postgres-exporter }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: postgres-exporter } }
+  template:
+    metadata: { labels: { app: postgres-exporter } }
+    spec:
+      containers:
+        - name: exporter
+          image: quay.io/prometheuscommunity/postgres-exporter:v0.20.1   # 首次部署後依準備 5 固定為 digest
+          env:
+            - name: PGHOST
+              valueFrom:
+                configMapKeyRef: { name: platform-config, key: PGHOST }
+            - name: DATA_SOURCE_USER
+              value: "postgres"
+            - name: DATA_SOURCE_PASS
+              valueFrom:
+                secretKeyRef: { name: platform-secrets, key: postgres-password }
+          # DATA_SOURCE_URI 不能用 valueFrom 直接拼字串,改用 shell 從 PGHOST 組出來 ——
+          # 避免把 RDS endpoint 另外寫死一份,單一事實來源仍是 platform-config。
+          # RDS PostgreSQL 15+ 預設要求 SSL,sslmode 用 require(不是自架時代的 disable)。
+          command: ["/bin/sh", "-c"]
+          args:
+            - export DATA_SOURCE_URI="${PGHOST}:5432/postgres?sslmode=require"; exec /bin/postgres_exporter
+          ports: [{ containerPort: 9187, name: http }]
+          resources:
+            requests: { memory: "64Mi", cpu: "50m" }
+            limits:   { memory: "128Mi" }
+          readinessProbe:
+            httpGet: { path: /metrics, port: 9187 }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-exporter
+  labels: { app: postgres-exporter }   # 給下面 ServiceMonitor 選的是 Service metadata label
+spec:
+  selector: { app: postgres-exporter }
+  ports: [{ name: http, port: 9187 }]
+---
+# 專屬 ServiceMonitor,不沿用 servicemonitor.yaml 的 tier: app 通用選擇器 ——
+# 這裡的 Service 沒有 tier: app,是刻意的(理由同 ai-agent.yaml)。
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: postgres-exporter
+  namespace: monitoring
+  labels: { release: kps }
+spec:
+  namespaceSelector: { matchNames: ["default"] }
+  selector: { matchLabels: { app: postgres-exporter } }
+  endpoints: [{ port: http, interval: 30s }]

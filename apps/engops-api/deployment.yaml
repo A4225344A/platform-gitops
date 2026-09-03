@@ -30,6 +30,10 @@ spec:
               value: postgres
             - name: PGDATABASE
               value: postgres
+            # Fork 這份 repo 的人請改成自己的 "owner/platform-gitops",
+            # 這裡沒有 GitHub Actions 可以套用 vars.*,所以直接改這個值。
+            - name: GITOPS_REPO
+              value: A4225344A/platform-gitops
             - name: PGPASSWORD
               valueFrom:
                 secretKeyRef:

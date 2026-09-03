@@ -7,6 +7,17 @@ spec:
     repoURL: https://github.com/A4225344A/platform-gitops.git
     targetRevision: main
     path: apps
+    directory:
+      # apps/ 底下有子目錄（例如 apps/engops-api/）放的是要被套用的 K8s manifest，
+      # 預設 recurse=false 時 ArgoCD 完全不會進去，導致 apps/engops-api/ 底下的
+      # Deployment/RBAC/CronJob 永遠不會被自動同步，每次更新都要手動 kubectl apply。
+      # 2026-09-04 發現並修正：見 EngOps_UI假元件接真數據_異常排除文件.md 異常 5。
+      recurse: true
+      # apps/litellm-conf/tw_recognizers.json 是純資料檔（JSON 陣列，PII recognizer
+      # 定義），不是 K8s manifest；開了 recurse 之後 ArgoCD 會嘗試把它解析成資源並
+      # 直接報錯（Failed to unmarshal），導致整個 app 的 manifest 產生失敗、
+      # SYNC STATUS 變成 Unknown。必須明確排除，不能只開 recurse。
+      exclude: "litellm-conf/**"
   destination: { server: https://kubernetes.default.svc, namespace: default }
   syncPolicy:
     automated: { selfHeal: true, prune: true }

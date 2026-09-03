@@ -1,0 +1,11 @@
+# 這是 apps/platform-config.yaml 的樣板,實際檔案由
+# .github/workflows/render-platform-config.yml 讀取 repo variables 算繪產生,
+# 不要直接手改 apps/platform-config.yaml——下次 render 會覆蓋掉。
+# 要換值(例如換 RDS host、告警信箱),改這裡的 repo variables 再重新觸發 workflow:
+#   Settings → Secrets and variables → Actions → Variables → PGHOST / ALERT_EMAIL
+apiVersion: v1
+kind: ConfigMap
+metadata: { name: platform-config }
+data:
+  PGHOST: ${PGHOST}
+  alert-email: ${ALERT_EMAIL}

@@ -14,9 +14,15 @@ spec:
         app: engops-api
     spec:
       serviceAccountName: engops-api
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
       containers:
         - name: api
           image: ghcr.io/a4225344a/engops-api:sha-a503fa9f4953
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
           ports:
             - name: http
               containerPort: 8000

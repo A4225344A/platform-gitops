@@ -8,9 +8,15 @@ spec:
     metadata: { labels: { app: ai-agent } }
     spec:
       serviceAccountName: ai-agent          # 任務 7.2 建立,受限權限
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
       containers:
         - name: agent
           image: ghcr.io/a4225344a/ai-agent:sha-6adf1ad98e2d
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
           ports: [{ containerPort: 8080, name: http }]
           env:
             - { name: LITELLM_URL,  value: "http://litellm:4000" }

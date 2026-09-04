@@ -166,6 +166,42 @@ engops-api-84bc649899-wp8hc   1/1     Running   0          7m3s   10.42.1.199   
 
 ---
 
+### B5.(連環問題)`platform-backend` CI 的 lock file 驗證步驟,連續紅燈四次才真正修好
+
+B3 上線後,CI 的「驗證 lock file 是最新的」這步接連紅了四次,每次原因都不一樣。完整記錄下來,因為每一個都是「本機測完全過、只有 CI 才會炸」的類型,單看某一次很容易誤判成隨機抽風。
+
+**紅燈 1:`Set up Python` 直接報錯,找不到依賴檔**
+
+```
+Error: No file in .../platform-backend matched to [**/requirements.txt or
+**/pyproject.toml], make sure you have checked out the target repository
+```
+
+- **根因**:`actions/setup-python@v6` 的 `cache: pip` 預設用 `**/requirements.txt`/`**/pyproject.toml` 當快取依據的 glob。B3 把 `requirements.txt` 改名成 `requirements.in` 後,這個 glob 找不到任何檔案,直接讓步驟報錯。`platform-agent` 剛好有一個(內容其實是空的)`pyproject.toml`,巧合符合了 glob 才沒踩到同樣的坑——不是刻意的防護。
+- **修法**:`actions/setup-python@v6` 明確加 `cache-dependency-path: requirements.lock`,`platform-agent` 也順手補上同一行,不再依賴巧合。
+
+**紅燈 2:`git diff --exit-code requirements.lock` 判定「lock 檔不是最新」,diff 顯示 `typing-extensions` 的 `via` 清單不同**
+
+- **根因**:本機重新產生 `requirements.lock` 用的 venv 其實是 **Python 3.14**,但 `Dockerfile`/CI 都是 **Python 3.12**。不同 Python 版本下,`psycopg`/`pytest-asyncio`/`starlette` 是否需要 `typing-extensions` 這個回填套件的判斷不同(3.14 內建了更多 typing 功能,不需要;3.12 還需要),造成解析結果不同。
+- **修法**:改用真正的 Python 3.12(`py -3.12 -m venv .venv312`)重新產生,本機驗證(`pip install --require-hashes`、`pip check`、`pip-audit`、`pytest`)全過後 push。
+
+**紅燈 3:同一步驟又紅,這次 diff 顯示 `httptools` 多了一大串新 hash**
+
+- **根因**:`httptools==0.8.0` 這個已發布版本,PyPI 上的 wheel 清單被上游持續追加(版本號沒變,新平台/新 Python 版本的 wheel 陸續補上),導致「重新解析 + 逐字比對雜湊清單」這個驗證方式,天生會被這種上游變動觸發假警報——即使 `requirements.in` 完全沒改。這次在本機用對的 Python 3.12 都沒能重現(代表撞上的是 PyPI 端持續在變的東西,不是本機環境問題),隔了一段時間再跑又用不同的 hash 炸了第二次,證實是持續性的,不是單次巧合。
+- **修法**:CI 的驗證步驟改成只比對「套件==版本」是否跟 `requirements.in` 對齊(`grep + awk '{print $1}' + sort + diff`),刻意不比對雜湊清單本身——雜湊的完整性驗證交給後面 `pip install --require-hashes` 那步做(那步驗的是「下載到的檔案雜湊有沒有在鎖定檔清單裡」,不需要清單逐字相同)。本機模擬了這個新比對方式,並刻意在 `requirements.in` 塞一個假依賴驗證它還抓得到真的 drift,確認沒有把檢查機制做成形同虛設。
+
+**紅燈 4:比對方式修好了,但 diff 顯示 `colorama`/`tzdata` 多了、`uvloop` 少了**
+
+- **根因**:這次不是版本問題,是**作業系統**問題。`pip-compile` 會依「執行它的那台機器」解析平台相關依賴——本機是 Windows,解析出 `colorama`(Windows 終端機色彩支援)、`tzdata`(Windows 沒有內建 IANA 時區資料庫);CI/`Dockerfile` 是 Linux,需要 `uvloop`(Linux/Mac 專屬的高效能事件迴圈,Windows 裝不了)。**在本機 Windows 上,不管用哪個 Python 版本,都不可能產生出跟 Linux 部署目標一致的鎖定檔**——這比紅燈 2 的教訓更根本。
+- 本機沒有可用的 Docker daemon(Docker Desktop 沒在跑,啟動它成本較高),改用更可靠也更長久的做法:新增 `.github/workflows/sync-requirements-lock.yml`(手動觸發),在跟 `Dockerfile` 完全一致的 GitHub Actions Linux + Python 3.12 環境重新產生 `requirements.lock` 並自動 commit 回去。
+- **修法**:手動觸發 `Sync requirements.lock` workflow → 自動 commit 修正後的鎖定檔 → 觸發下一次 `CI/CD` → 通過。`README.md` 同步改成明確告訴讀者「不要在本機、尤其是 Windows 重新產生這個檔案」,改依賴後用這個 workflow。
+
+**驗證結果**:✅ 四個問題依序修復後,`CI/CD` workflow 綠燈。
+
+**這次串連起來的教訓**:雜湊鎖定檔的「驗證是否最新」這個動作,如果做法是「在某台機器上重新解析、跟已提交的檔案逐字比對」,那份鎖定檔的正確性就完全綁死在「重新解析的那台機器」跟「正式部署目標」是否環境一致(作業系統、Python 版本、套件生態圈當下狀態三者都要對得上)。四次紅燈分別對應到這三個維度各自出過的錯,最終的修法也分成兩層:CI 的驗證邏輯改成不受雜湊清單自然變動影響(比對版本而非雜湊),以及把「產生鎖定檔」這個動作徹底移到跟部署目標一致的環境裡執行,不再依賴任何人的本機。
+
+---
+
 ## 複查範圍內、確認沒問題的項目(佐證覆蓋面,非本次修改)
 
 | 類別 | 結論 |

@@ -61,6 +61,13 @@ spec:
                   name: platform-secrets
                   key: engops-decision-token
                   optional: true
+            # 沒設之前 /api/v1/incidents/{id}/ask 一律回 503,不影響其他端點。
+            - name: ASK_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: platform-secrets
+                  key: ask-token
+                  optional: true
           readinessProbe:
             httpGet:
               path: /readyz

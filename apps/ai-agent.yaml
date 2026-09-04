@@ -34,6 +34,11 @@ spec:
             - name: ALERT_WEBHOOK_TOKEN
               valueFrom:
                 secretKeyRef: { name: platform-secrets, key: alert-webhook-token }
+            # optional:true——沒設這個 key 之前,唯讀事故問答端點單純一直回 401,
+            # 不會讓整個 pod CreateContainerConfigError。
+            - name: ASK_TOKEN
+              valueFrom:
+                secretKeyRef: { name: platform-secrets, key: ask-token, optional: true }
             - name: AWS_ACCESS_KEY_ID
               valueFrom:
                 secretKeyRef:

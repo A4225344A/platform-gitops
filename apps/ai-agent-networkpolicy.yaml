@@ -17,3 +17,12 @@ spec:
       ports:
         - protocol: TCP
           port: 8080
+    # engops-api 轉發 /incidents/{id}/ask(唯讀事故問答)用,兩者同在 default
+    # namespace,podSelector 精準指到 engops-api,不開放整個 namespace。
+    - from:
+        - podSelector:
+            matchLabels:
+              app: engops-api
+      ports:
+        - protocol: TCP
+          port: 8080

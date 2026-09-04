@@ -75,22 +75,28 @@
 
 **問題**:`platform-gitops/apps/ai-agent-rbac.yaml` 的 `Role` 只給 `deployments`/`replicasets` 的 `get`、`list`,但 `platform-agent/src/agent.py` 的 `remediate()` 對 `action=="restart"` 會呼叫 `apps_v1.patch_namespaced_deployment(...)`。目前因為 `REQUIRE_HUMAN_APPROVAL=true` 擋住大部分自動執行路徑,這個缺口暫時沒被觸發,但一旦核准流程接上真執行路徑,`restart` 會直接吃 403,變成「系統以為修好了、其實什麼都沒做」的靜默失敗。
 
-**修復**:在 `deployments` 那條規則加上 `"patch"`,`replicasets` 維持唯讀不變。
+**初步修復(後來復原)**:一開始在 `deployments` 那條規則加上 `"patch"` 並 push、驗證 pod 正常。
+
+**修正**:事後對照《W3_AI自我修復_專案說明文件.md》才發現,這個「沒有 patch」不是遺漏,而是 **2026-09-01 安全控制強化時刻意移除的設計**——目的是讓 RBAC 這一層獨立於 `REQUIRE_HUMAN_APPROVAL` 與程式邏輯之外,即使兩者都被繞過,`ai-agent` 在 kube-apiserver 端仍完全無法寫入 Deployment。這是主文件裡「最終狀態以安全控制為準——AI 只能提出建議」這句話的具體實作。
+
+跟你確認後,已改回原設計:`deployments`/`replicasets` 都只有 `get, list`,並在 `ai-agent-rbac.yaml` 加註解說明這段來龍去脈,避免下次複查再誤判成 bug。
 
 ```diff
    - apiGroups: ["apps"]
 -    resources: ["deployments", "replicasets"]
 -    verbs: ["get", "list"]
 +    resources: ["deployments"]
-+    verbs: ["get", "list", "patch"]
++    verbs: ["get", "list", "patch"]      # 一度加回,已復原
 +  - apiGroups: ["apps"]
 +    resources: ["replicasets"]
 +    verbs: ["get", "list"]
 ```
 
-**驗證方式**:push 後在控制節點檢查 pod 狀態與 restart 次數,確認 RBAC 變更沒有讓 pod 進入 CrashLoopBackOff。
+**驗證方式**:兩次 push(加回 patch → 復原)後都在控制節點檢查 pod 狀態與 restart 次數,確認 RBAC 變更沒有讓 pod 進入 CrashLoopBackOff。
 
-**驗證結果**:✅ `kubectl get pods` 顯示 `ai-agent` pod `1/1 Running`、`RESTARTS 0`,`Ready` 條件皆為 `True`。
+**驗證結果**:✅ 兩次都確認 `ai-agent` pod `1/1 Running`、`RESTARTS 0`,`Ready` 條件皆為 `True`。**最終狀態:恢復成 2026-09-01 的原始設計,RBAC 無 `patch` 權限。**
+
+> 這是本次複查裡最值得記取的一點:離開單一 repo、只看程式碼行為去下結論,會漏掉「這是刻意的縱深防禦」這種只存在於另一份文件裡的脈絡。跨 repo 的安全決策最好有一份主文件可查,而不是散落在各處的 commit message。
 
 ---
 

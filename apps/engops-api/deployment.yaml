@@ -19,7 +19,7 @@ spec:
         runAsUser: 10001
       containers:
         - name: api
-          image: ghcr.io/a4225344a/engops-api:sha-5ea33dfd9e68
+          image: ghcr.io/a4225344a/engops-api:sha-4f9e4fdd59d3
           securityContext:
             allowPrivilegeEscalation: false
             capabilities: { drop: ["ALL"] }

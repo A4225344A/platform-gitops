@@ -10,11 +10,11 @@ rules:
     resources: ["pods", "pods/log", "events", "services"]
     verbs: ["get", "list"]
   - apiGroups: ["apps"]
-    resources: ["deployments"]
-    verbs: ["get", "list", "patch"]
-  - apiGroups: ["apps"]
-    resources: ["replicasets"]
+    resources: ["deployments", "replicasets"]
     verbs: ["get", "list"]
+  # 2026-09-01 安全控制強化時刻意移除 patch:即使 REQUIRE_HUMAN_APPROVAL 或
+  # 程式邏輯被繞過,RBAC 這一層仍讓 ai-agent 完全無法寫入 Deployment。
+  # 2026-09-04 資安複查一度誤判成遺漏而加回 patch,已確認並改回原設計。
   - apiGroups: ["autoscaling"]
     resources: ["horizontalpodautoscalers"]
     verbs: ["get", "list"]

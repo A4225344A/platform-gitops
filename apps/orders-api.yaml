@@ -18,9 +18,6 @@ spec:
       containers:
         - name: orders-api
           image: ghcr.io/a4225344a/platform-service@sha256:c1e1e1dd13f83d4b6129e20ef213742e979632bbd9413c1ceea11f685110ad6b
-          # 刻意注入的故障演練(比照主文件任務 8.2),測完務必 revert 這個 commit——
-          # 見 §7.2 問題 8:殘留這行會讓清理後 Deployment 一直卡 exceeded progress deadline。
-          command: ["sh", "-c", "echo boom; exit 1"]
           ports: [{containerPort: 8080}]
           env:
             - name: SERVICE_NAME

@@ -202,6 +202,82 @@ Error: No file in .../platform-backend matched to [**/requirements.txt or
 
 ---
 
+## Part C — AI 可信度顯示 + AI 問答功能(2026-09-04)
+
+起因:希望在 UI 上讓人更相信 AI 的判定,原本的構想是「顯示信心分數」+「AI 對話功能」。落地前先確認了兩件事:模型自報的信心分數是已知不可靠的做法(容易造成自動化偏誤),以及對話功能若做成開放式即時聊天,會打破這個系統刻意維持的 read-only 邊界,最終改成兩個風險可控的版本。
+
+### C1. 拿掉假的信心分數,改成真實資料驅動的三張卡片
+
+**問題**:事故詳情頁的「AI Assessment」卡片一直顯示 `N/A`——UI 讀的是 `judged.detail.confidence` 這個欄位,但 `platform-agent` 的 `RemediationAction` schema(`action`/`service`/`reason`)根本沒有 `confidence` 欄位,這是又一個沒接真數據的裝飾元件,只是藏在事故詳情頁、沒被之前(§6.10)那輪盤點抓到。
+
+**修復**:
+- `platform-backend` 新增 `GET /api/v1/accuracy?service=` 端點,對 `incidents.outcome` 分組算 verified/failed/notify_only 次數與命中率。
+- `platform-ui` 拿掉假信心分數,改成三張卡片:
+  1. **AI Assessment**——直接顯示 `judged` 步驟的 `action`(重啟/回滾/只通知)跟 `reason`(模型判斷理由的原文)
+  2. **Safety checks**——解讀 `guarded` 步驟的 `downgraded_by`,把「為什麼沒有自動修復」講成人看得懂的一句話(例如「需要人工核准才能動手」)
+  3. **Track Record**——打 `/api/v1/accuracy`,顯示這個服務的真實歷史命中率
+
+**驗證方式**:先用既有(status 非 running)事故的 API 資料比對三張卡片內容是否一致,再用 C3 的故障演練產生一筆全新的、真的跑過完整判讀流程的事故,肉眼比對畫面。
+
+**驗證結果**:✅ 用故障演練產生的 incident #569(見 C3)實測:
+- AI Assessment 顯示「**Restart**」+ 完整理由(「PodCrashLooping with startup probe connection refused on port 8080. Node resources adequate...」)
+- Safety checks 顯示「Downgraded to notify-only: human approval is required before acting.」,跟 API 回傳的 `"downgraded_by":"human_approval_required"` 完全對應
+- Track Record 顯示「**94%**」+「45 verified · 3 failed · 47 notify-only」,真實資料,不是裝飾
+
+---
+
+### C2. 新增唯讀事故問答功能(4 個 repo)
+
+**設計邊界**(跟你確認過的範圍):只能問「已發生的這一筆事故」,回答只根據該事故已存的 `incident_steps` 紀錄回答,不能發起新的 K8s/AWS 查詢、不能觸發任何動作。
+
+**修復**:
+- `platform-agent` 新增 `GET /incidents/{id}/ask`:讀該事故的 `incidents`/`incident_steps`,組成一段固定的 system prompt(明確禁止建議或輸出具體指令、禁止被問題內容誘導扮演別的角色),呼叫 `call_llm()` 取得純文字回答——**沒有任何工具呼叫能力**,即使被注入攻破,最壞只是答錯話,不會變成執行動作。認證用獨立的 `ASK_TOKEN`(跟 `ALERT_WEBHOOK_TOKEN` 分開,職責不同)。
+- `platform-gitops`:`ai-agent-networkpolicy.yaml` 新增一條 podSelector 精準指到 `engops-api` 的 ingress 規則;`ai-agent.yaml`/`engops-api/deployment.yaml` 都新增 `optional: true` 的 `ASK_TOKEN`(沒設定 secret key 前端點只會回 401/503,不會讓 pod 壞掉)。
+- `platform-backend` 新增 `GET /api/v1/incidents/{id}/ask` 轉發層,`engops-api` 本身不呼叫 LLM,只做認證轉發與錯誤對應。
+- `platform-ui` 事故詳情頁新增問答框。
+
+**驗證方式**:先跑過本機測試(agent 端 6 個、backend 端 4 個,皆 mock 掉 DB/LLM),push 後在 UI 上實際問問題。
+
+**驗證結果**:✅ 前三次全部 pass,但正式串接後在瀏覽器出現 `HTTP 403`——見 C3。
+
+---
+
+### C3.(插曲)問答框在瀏覽器出現 CloudFront 403,改用 GET
+
+**問題**:UI 送出問題時收到:
+
+```
+403 錯誤:此發行版未配置為允許此請求使用的 HTTP 請求方法。此發行版僅支援可快取請求。
+```
+
+**根因**:C2 最初用 `POST` 送問題(帶 JSON body)。CloudFront 的 `/api/*` 只允許 `GET/HEAD/OPTIONS`(主文件 §6.7/§12 已經記錄「POST 被 CloudFront 原生 403」是**通過**的驗證項目,不是漏洞)——這正是主文件 §11「一個值得留意的設計觀察」預言過的地雷:新功能沒注意到既有的 method 白名單邊界。
+
+**修復**:`platform-agent`/`platform-backend`/`platform-ui` 三處都改成 `GET`,問題內容改用 query string(`?question=`)傳遞,不再用 request body。這個端點本來就是唯讀查詢,GET 語意也更誠實。
+
+**驗證方式**:改完後在控制節點直接用 curl 測 CloudFront 網域(`x-cache` header 確認不是快取問題)。
+
+**驗證結果**:✅ `HTTP/2 200`,`x-cache: Miss from cloudfront`,LLM 正確根據事故紀錄回答,且對籠統的測試問題誠實反問而不是亂編。
+
+之後 UI 上仍一度看到舊版畫面(信心分數卡片沒換成新版),排查後確認是**瀏覽器快取**,不是部署問題——直接 diff CloudFront 上實際提供的 JS 檔案雜湊(`index-k0rixANc.js`)跟本機重新 build 的結果完全一致,且用 `grep` 在該檔案裡直接找到 `Track Record`/`guardReasonHumanApproval` 等新程式碼字串,證實部署本身沒問題。強制重新整理(`Ctrl+Shift+R`)後畫面正確。
+
+---
+
+### C4. 端到端驗證:刻意注入故障,產生一筆真實的判讀紀錄
+
+C1/C2 早期測試時,選到的事故要嘛是 0 steps 的殘留測試資料、要嘛是投遞中斷(Stalled)的舊事故,三張卡片自然都顯示「沒有資料」——這是正確的誠實顯示,但沒辦法拿來驗證「有資料時顯示得對不對」。比照主文件任務 8.2 的做法,直接觸發一次真的故障:
+
+1. `platform-gitops/apps/orders-api.yaml` 暫時加入 `command: ["sh", "-c", "echo boom; exit 1"]`,commit + push
+2. ArgoCD 同步後 `orders-api` 進入 `CrashLoopBackOff`
+3. Prometheus `PodCrashLooping` 規則轉為 firing → Alertmanager 送 webhook → `ai-agent` 判讀
+4. 用 `kubectl logs deploy/ai-agent | grep orders-api` 直接確認 agent 已處理:`done PodCrashLooping/orders-api action=notify_only verified=None outcome=notify_only`
+5. 用 `/api/v1/search?q=orders` 找到新產生的 incident(#569,`started_at` 為當天),用 `/api/v1/incidents/569` 確認 `judged`/`guarded` 步驟資料完整
+6. 在 UI 上開這筆事故,肉眼確認 C1 的三張卡片正確顯示(見 C1 驗證結果)
+7. **清理**:`git revert` 那個 commit 並 push,確認 `orders-api` 三個 pod 都回到 `Running`,沒有殘留 `command: boom`(對應主文件 §7.2 問題 8 的已知坑——沒清乾淨會讓 Deployment 卡 `exceeded its progress deadline`)
+
+**驗證結果**:✅ 全部步驟符合預期。這次演練也順便再次證實五道降級檢查裡的「`REQUIRE_HUMAN_APPROVAL=true` 擋下幾乎所有自動修復」在真實流量下確實如此運作——`action` 模型判斷是 `restart`,但 `guarded` 步驟把它降級成 `notify_only`,沒有真的去 patch Deployment。
+
+---
+
 ## 複查範圍內、確認沒問題的項目(佐證覆蓋面,非本次修改)
 
 | 類別 | 結論 |

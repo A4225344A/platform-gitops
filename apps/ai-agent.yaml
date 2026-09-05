@@ -31,6 +31,11 @@ spec:
             - name: ALERT_EMAIL
               valueFrom:
                 configMapKeyRef: { name: platform-config, key: alert-email }
+            # 通知改走 SNS(見 platform-infra/modules/aws-infra/sns.tf),
+            # ALERT_EMAIL 只剩「信件內文列出應通知對象」這個用途,不再是 SES Source。
+            - name: SNS_ALERT_TOPIC_ARN
+              valueFrom:
+                configMapKeyRef: { name: platform-config, key: sns-topic-arn }
             - name: ALERT_WEBHOOK_TOKEN
               valueFrom:
                 secretKeyRef: { name: platform-secrets, key: alert-webhook-token }

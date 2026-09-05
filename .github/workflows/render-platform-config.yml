@@ -25,10 +25,11 @@ jobs:
         env:
           PGHOST: ${{ vars.PGHOST }}
           ALERT_EMAIL: ${{ vars.ALERT_EMAIL }}
+          SNS_TOPIC_ARN: ${{ vars.SNS_TOPIC_ARN }}
         run: |
           set -euo pipefail
-          if [ -z "${PGHOST}" ] || [ -z "${ALERT_EMAIL}" ]; then
-            echo "請先在 repo variables 設定 PGHOST 和 ALERT_EMAIL,再重新觸發這個 workflow" >&2
+          if [ -z "${PGHOST}" ] || [ -z "${ALERT_EMAIL}" ] || [ -z "${SNS_TOPIC_ARN}" ]; then
+            echo "請先在 repo variables 設定 PGHOST、ALERT_EMAIL 和 SNS_TOPIC_ARN,再重新觸發這個 workflow" >&2
             exit 1
           fi
           envsubst < apps/platform-config.yaml.tmpl > apps/platform-config.yaml

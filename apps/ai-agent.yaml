@@ -13,7 +13,7 @@ spec:
         runAsUser: 10001
       containers:
         - name: agent
-          image: ghcr.io/a4225344a/ai-agent:sha-6e05770b79aa
+          image: ghcr.io/a4225344a/ai-agent:sha-44af380a9e1a
           securityContext:
             allowPrivilegeEscalation: false
             capabilities: { drop: ["ALL"] }
@@ -27,7 +27,7 @@ spec:
                 configMapKeyRef: { name: platform-config, key: PGHOST }
             - { name: AWS_REGION,   value: "ap-northeast-1" }
             - { name: TARGET_NAMESPACE, value: "default" }
-            - { name: AGENT_VERSION,    value: "sha-6e05770b79aa" }
+            - { name: AGENT_VERSION,    value: "sha-44af380a9e1a" }
             - name: ALERT_EMAIL
               valueFrom:
                 configMapKeyRef: { name: platform-config, key: alert-email }

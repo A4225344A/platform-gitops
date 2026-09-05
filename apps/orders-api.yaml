@@ -18,6 +18,7 @@ spec:
       containers:
         - name: orders-api
           image: ghcr.io/a4225344a/platform-service@sha256:c1e1e1dd13f83d4b6129e20ef213742e979632bbd9413c1ceea11f685110ad6b
+          command: ["sh", "-c", "echo boom; exit 1"]
           ports: [{containerPort: 8080}]
           env:
             - name: SERVICE_NAME

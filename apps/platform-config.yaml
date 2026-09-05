@@ -8,4 +8,4 @@ kind: ConfigMap
 metadata: { name: platform-config }
 data:
   PGHOST: platform-postgres.c7sucg26mtos.ap-northeast-1.rds.amazonaws.com
-  alert-email: zxc376cxz@gmail.com
+  alert-email: zxc3786cxz@gmail.com

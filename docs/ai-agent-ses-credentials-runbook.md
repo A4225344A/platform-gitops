@@ -1,5 +1,14 @@
 # AI Agent SES Credentials Runbook
 
+> **Superseded for sending.** `ai-agent` no longer calls `ses.send_email()` —
+> sending From a personal Yahoo/Gmail address via SES fails DMARC at any
+> enforcing receiver (Gmail, Yahoo itself), confirmed in practice. Notifications
+> now publish to SNS instead; see
+> [ai-agent-sns-notifications-runbook.md](ai-agent-sns-notifications-runbook.md).
+> This document is kept for history — the `platform-ai-agent-ses` IAM user and
+> its access key are still in use, just for `sns:Publish` now instead of
+> `ses:SendEmail`.
+
 ## Problem
 
 `ai-agent` can decide and log incidents, but email notification currently logs:

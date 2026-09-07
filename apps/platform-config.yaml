@@ -9,7 +9,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata: { name: platform-config }
 data:
-  PGHOST: platform-postgres.c7sucg26mtos.ap-northeast-1.rds.amazonaws.com
-  alert-email: zxc0308cxz@yahoo.com.tw
-  sns-topic-arn: arn:aws:sns:ap-northeast-1:029099141993:platform-ai-agent-alerts
-  engops-ui-url: ""
+  PGHOST: "SET-VIA-GITHUB-VARIABLE-PGHOST-THEN-RERUN-RENDER-WORKFLOW"
+  alert-email: "SET-VIA-GITHUB-VARIABLE-ALERT_EMAIL-THEN-RERUN-RENDER-WORKFLOW"
+  sns-topic-arn: "SET-VIA-GITHUB-VARIABLE-SNS_TOPIC_ARN-THEN-RERUN-RENDER-WORKFLOW"
+  engops-ui-url: "SET-VIA-GITHUB-VARIABLE-ENGOPS_UI_URL-THEN-RERUN-RENDER-WORKFLOW"

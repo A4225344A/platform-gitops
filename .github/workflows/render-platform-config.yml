@@ -29,8 +29,8 @@ jobs:
           ENGOPS_UI_URL: ${{ vars.ENGOPS_UI_URL }}
         run: |
           set -euo pipefail
-          if [ -z "${PGHOST}" ] || [ -z "${ALERT_EMAIL}" ] || [ -z "${SNS_TOPIC_ARN}" ]; then
-            echo "請先在 repo variables 設定 PGHOST、ALERT_EMAIL 和 SNS_TOPIC_ARN,再重新觸發這個 workflow" >&2
+          if [ -z "${PGHOST}" ] || [ -z "${ALERT_EMAIL}" ] || [ -z "${SNS_TOPIC_ARN}" ] || [ -z "${ENGOPS_UI_URL}" ]; then
+            echo "請先在 repo variables 設定 PGHOST、ALERT_EMAIL、SNS_TOPIC_ARN 和 ENGOPS_UI_URL,再重新觸發這個 workflow" >&2
             exit 1
           fi
           envsubst < apps/platform-config.yaml.tmpl > apps/platform-config.yaml

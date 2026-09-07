@@ -26,6 +26,7 @@ jobs:
           PGHOST: ${{ vars.PGHOST }}
           ALERT_EMAIL: ${{ vars.ALERT_EMAIL }}
           SNS_TOPIC_ARN: ${{ vars.SNS_TOPIC_ARN }}
+          ENGOPS_UI_URL: ${{ vars.ENGOPS_UI_URL }}
         run: |
           set -euo pipefail
           if [ -z "${PGHOST}" ] || [ -z "${ALERT_EMAIL}" ] || [ -z "${SNS_TOPIC_ARN}" ]; then
